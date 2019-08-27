@@ -28,7 +28,7 @@ BS = 16
 FULL_FINETUNING = True
 
 
-def logger(filename):
+def get_logger(filename):
     logging.basicConfig(filename=filename,
                                 filemode='a',
                                 format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
@@ -234,16 +234,21 @@ class BertTrainer(object):
 
 class Evaluator():
 
-    def __init__(self, trainer):
+    def __init__(self, trainer, tokenizer):
         self.trainer = trainer
+        self.tokenizer = tokenizer
         self.results = dict()
 
-    def add_network_parameters(self, epochs, max_grad_norm, max_len, bs, full_finetuning):
+    def add_network_parameters(self, epochs, max_grad_norm, max_len, bs, full_finetuning, device, n_gpu, loss, optimizer):
         self.results['network_parameters'] = {'epochs': epochs,
                         'max_grad_norm': max_grad_norm,
                         'max_len': max_len,
                         'bs': bs,
-                        'full_finetuning': full_finetuning}
+                        'full_finetuning': full_finetuning,
+                        'device': device,
+                        'n_gpu': n_gpu,
+                        'loss': loss,
+                        'optimizer': optimizer}
 
     def flat_accuracy(self, preds, labels):
         pred_flat = np.argmax(preds, axis=2).flatten()
@@ -298,7 +303,7 @@ class Evaluator():
 
     def test_model(self, model, tok_sent, tok_labels):
         input_ids, tags, attention_masks = self.trainer.pad_sentences_and_labels([tok_sent], [tok_labels],
-                                                                         tokenizer=tokenizer)
+                                                                         tokenizer=self.tokenizer)
         val_inputs = torch.tensor(input_ids, dtype=torch.long)
         val_tags = torch.tensor(tags, dtype=torch.long)
         val_masks = torch.tensor(attention_masks, dtype=torch.long)
@@ -341,9 +346,9 @@ class Evaluator():
 
         return tmp
 
-    def collect_accuracies(self, model):
+    def collect_accuracies(self, model, dev_sentences, dev_tags):
         sentence_num = 1
-        dev_tokenized_texts, dev_tokenized_labels = self.trainer.tokenize(dev_sentences, dev_tags, tokenizer)
+        dev_tokenized_texts, dev_tokenized_labels = self.trainer.tokenize(dev_sentences, dev_tags, self.tokenizer)
         for sent, label, tok_sent, tok_label in zip(dev_sentences, dev_tags, dev_tokenized_texts, dev_tokenized_labels):
             try:
                 predictions = self.test_model(model, tok_sent, tok_label)
@@ -368,7 +373,7 @@ class Evaluator():
 
 if __name__ == '__main__':
     script, model_filename, modality_resolution = sys.argv
-    logger = logger('./logs/{}.log'.format(model_filename))
+    logger = get_logger('./logs/{}.log'.format(model_filename))
     define_torch_seed(3)
     gme_df = pd.read_csv('./data/tokenized_and_tagged_gme_coarse_grained.csv', sep='\t', keep_default_na=False)
     dev_df, train_df, test_df = split_dev_train_and_test_sets(gme_df, modality_resolution, 0.8)
@@ -407,10 +412,11 @@ if __name__ == '__main__':
 
     # evaluations
     eval = Evaluator(bert)
-    eval.collect_accuracies(model)
+    eval.collect_accuracies(model, dev_sentences, dev_tags, tokenizer)
     eval.calculate_dataset_accuracy()
-    eval.add_network_parameters(EPOCHS, MAX_GRAD_NORM, MAX_LEN,BS, FULL_FINETUNING)
+    eval.add_network_parameters(EPOCHS, MAX_GRAD_NORM, MAX_LEN,BS, FULL_FINETUNING, device, n_gpu, loss, optimizer)
     results = eval.results
 
     with open('./results/{}.json'.format(model_filename), 'w') as outfile:
         json.dump(results, outfile, indent=4)
+
