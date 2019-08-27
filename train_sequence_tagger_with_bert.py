@@ -5,8 +5,9 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm, trange
 from conlleval import evaluate
+import json
 import time
-
+import logging
 import ast
 
 import torch
@@ -27,6 +28,15 @@ BS = 16
 FULL_FINETUNING = True
 
 
+def logger(filename):
+    logging.basicConfig(filename=filename,
+                                filemode='a',
+                                format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                                datefmt='%H:%M:%S',
+                                level=logging.INFO)
+    logger = logging.getLogger('modality_trainer')
+    return logger
+
 def define_torch_seed(seed=3):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -43,7 +53,7 @@ def split_dev_train_and_test_sets(df, subtype, train_size: float):
                 return row['is_modal'][0] + '-' + row['modal_type'].split(':')[0]
             elif subtype == 'fine':
                 return row['is_modal'][0] + '-' + row['modal_type'].split(':')[1]
-            elif subtype == 'yes/no':
+            elif subtype == 'yes_no':
                 return 'M'
             else:
                 return row['is_modal'][0]
@@ -99,8 +109,6 @@ class SentenceGetter(object):
 
 
 class BertTrainer(object):
-
-
     def __init__(self, dev_df, train_df, test_df, pre_trained='bert-base-cased', bs=BS, max_len=MAX_LEN):
         self.pre_trained = pre_trained
         self.dev_df = dev_df
@@ -219,14 +227,148 @@ class BertTrainer(object):
                 optimizer.step()
                 model.zero_grad()
             # print train loss per epoch
-            print("Epoch number: {} \t Train loss: {}".format(epNum, (tr_loss / nb_tr_steps)))
+            logger.info("Epoch number: {} \t Train loss: {}".format(epNum, (tr_loss / nb_tr_steps)))
             epNum += 1
         return loss
 
 
+class Evaluator():
+
+    def __init__(self, trainer):
+        self.trainer = trainer
+        self.results = dict()
+
+    def add_network_parameters(self, epochs, max_grad_norm, max_len, bs, full_finetuning):
+        self.results['network_parameters'] = {'epochs': epochs,
+                        'max_grad_norm': max_grad_norm,
+                        'max_len': max_len,
+                        'bs': bs,
+                        'full_finetuning': full_finetuning}
+
+    def flat_accuracy(self, preds, labels):
+        pred_flat = np.argmax(preds, axis=2).flatten()
+        labels_flat = labels.flatten()
+        return np.sum(pred_flat == labels_flat) / len(labels_flat)
+
+    def aggregate_tokens(self, split_tokens: list):
+        aggregated_tokens = []
+        for token in split_tokens:
+            if token.startswith("##"):
+                aggregated_tokens[-1] = aggregated_tokens[-1] + token[2:]
+            else:
+                aggregated_tokens.append(token)
+        return aggregated_tokens
+
+    def delete_pads_from_preds(self, predicted_tags, test_tags):
+        clean_predicted = []
+        clean_test = []
+
+        for ix in range(0, len(test_tags)):
+            if test_tags[ix] != 'PAD':
+                clean_predicted.append(predicted_tags[ix])
+                clean_test.append(test_tags[ix])
+
+        return clean_predicted, clean_test
+
+    def calculate_accuracy_per_sent(self, prediction_dict: dict):
+        """ here precision and recall are defined in terms of O/not-O"""
+        numOfCorrectPredictions = 0
+        numOfCorrectNon_O = 0
+        precision, recall, f1 = evaluate(prediction_dict['test_tag'], prediction_dict['predicted_tag'], verbose=False)
+        total_labeled = len([x for x in prediction_dict['test_tag'] if x != 'O'])
+        for pred, orig in zip(prediction_dict['predicted_tag'], prediction_dict['test_tag']):
+            if orig == pred:
+                numOfCorrectPredictions += 1
+                if orig != 'O':
+                    numOfCorrectNon_O += 1
+        agg_tokens = self.aggregate_tokens(prediction_dict['word'])
+        evaluation = {
+            'sentence': " ".join(agg_tokens),
+            'tags': prediction_dict['test_tag'],
+            'length of bert-tokenized sentence': len(prediction_dict['word']),
+            'length of aggregated sentence': len(agg_tokens),
+            'predictions': prediction_dict['predicted_tag'],
+            'accuracy for all tags': numOfCorrectPredictions / len(prediction_dict['test_tag']),
+            'accuracy for only labeled': numOfCorrectPredictions / len(prediction_dict['test_tag']),
+            'precision': precision,
+            'recall': recall,
+            'modal': total_labeled != 0,
+            'f1': f1}
+        return evaluation
+
+    def test_model(self, model, tok_sent, tok_labels):
+        input_ids, tags, attention_masks = self.trainer.pad_sentences_and_labels([tok_sent], [tok_labels],
+                                                                         tokenizer=tokenizer)
+        val_inputs = torch.tensor(input_ids, dtype=torch.long)
+        val_tags = torch.tensor(tags, dtype=torch.long)
+        val_masks = torch.tensor(attention_masks, dtype=torch.long)
+
+        test_data = TensorDataset(val_inputs, val_masks, val_tags)
+        test_sampler = SequentialSampler(test_data)
+        test_dataloader = DataLoader(test_data, sampler=test_sampler, batch_size=self.trainer.bs)
+
+        eval_loss, eval_accuracy = 0, 0
+        nb_eval_steps, nb_eval_examples = 0, 0
+        predictions, true_labels = [], []
+        for batch in test_dataloader:
+            b_input_ids, b_input_mask, b_labels = tuple(t.to(self.trainer.device) for t in batch)
+
+            with torch.no_grad():
+                tmp_eval_loss = model(b_input_ids,
+                                      token_type_ids=None,
+                                      attention_mask=b_input_mask,
+                                      labels=b_labels)
+                logits = model(b_input_ids, token_type_ids=None,
+                               attention_mask=b_input_mask)
+            logits = logits.detach().cpu().numpy()
+            label_ids = b_labels.to('cpu').numpy()
+            predictions.append([list(p) for p in np.argmax(logits, axis=2)])
+
+            true_labels.append(label_ids)
+            tmp_eval_accuracy = self.flat_accuracy(logits, label_ids)
+
+            eval_loss += tmp_eval_loss.mean().item()
+            eval_accuracy += tmp_eval_accuracy
+
+            nb_eval_examples += b_input_ids.size(0)
+            nb_eval_steps += 1
+
+        pred_tags = [self.trainer.idx2tag[p_ii] for p in predictions for p_i in p for p_ii in p_i]
+        test_tags = [self.trainer.idx2tag[l_ii] for l in true_labels for l_i in l for l_ii in l_i]
+
+        clean_predicted, clean_test = self.delete_pads_from_preds(pred_tags, test_tags)
+        tmp = {'word': tok_sent, 'orig_label': tok_labels, 'predicted_tag': clean_predicted, 'test_tag': clean_test}
+
+        return tmp
+
+    def collect_accuracies(self, model):
+        sentence_num = 1
+        dev_tokenized_texts, dev_tokenized_labels = self.trainer.tokenize(dev_sentences, dev_tags, tokenizer)
+        for sent, label, tok_sent, tok_label in zip(dev_sentences, dev_tags, dev_tokenized_texts, dev_tokenized_labels):
+            try:
+                predictions = self.test_model(model, tok_sent, tok_label)
+                sentence_num += 1
+                if len(predictions['test_tag']) > 0:
+                    self.results[sentence_num] = self.calculate_accuracy_per_sent(predictions)
+            except ValueError:
+                raise Exception(
+                    'sent: {}, \n label{}, \n tok_sent{}, \n tok_label{}, \n'.format(sent, label, tok_sent, tok_label))
+
+    def calculate_dataset_accuracy(self):
+        all_tags = [tag for sentence in [details['tags'] for sent, details in self.results.items()] for tag in sentence]
+        all_predictions = [pred for sentence in [details['predictions'] for sent, details in self.results.items()] for
+                           pred in sentence]
+        total_precision, total_recall, total_f1 = evaluate(all_tags, all_predictions, verbose=True)
+        self.results['total_dataset_accuracy'] = {'total_precision': total_precision,
+                                                   'total_recall': total_recall,
+                                                   'total_f1': total_f1}
+
+
+
+
 if __name__ == '__main__':
     script, model_filename, modality_resolution = sys.argv
-
+    logger = logger('./logs/{}.log'.format(model_filename))
     define_torch_seed(3)
     gme_df = pd.read_csv('./data/tokenized_and_tagged_gme_coarse_grained.csv', sep='\t', keep_default_na=False)
     dev_df, train_df, test_df = split_dev_train_and_test_sets(gme_df, modality_resolution, 0.8)
@@ -248,8 +390,10 @@ if __name__ == '__main__':
     optimizer = Adam(optimizer_grouped_parameters, lr=3e-5)
 
     device, n_gpu = bert.set_cuda()
-
+    logger.info('idx2tag: {} \t tag2idx: {}'.format(bert.idx2tag,bert.tag2idx))
+    logger.info('device: {}\t n_gpu{}'.format(device, n_gpu))
     loss = bert.train_model(model, EPOCHS, MAX_GRAD_NORM, optimizer)
+    logger.info('run training with parameters: epochs: {} \n loss: {}'.format(EPOCHS, loss))
 
     torch.save({
         'epoch': EPOCHS,
@@ -258,3 +402,15 @@ if __name__ == '__main__':
         'loss': loss
     },
         './models/{}.pth'.format(model_filename))
+
+
+
+    # evaluations
+    eval = Evaluator(bert)
+    eval.collect_accuracies(model)
+    eval.calculate_dataset_accuracy()
+    eval.add_network_parameters(EPOCHS, MAX_GRAD_NORM, MAX_LEN,BS, FULL_FINETUNING)
+    results = eval.results
+
+    with open('./results/{}.json'.format(model_filename), 'w') as outfile:
+        json.dump(results, outfile, indent=4)
