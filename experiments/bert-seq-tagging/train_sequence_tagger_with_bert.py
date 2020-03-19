@@ -63,9 +63,11 @@ def split_dev_train_and_test_sets(df, subtype, train_size: float):
     dev_sents, train_sents, test_sents = sent_numbers[1:(int(len(sent_numbers) * dev_size))], sent_numbers[(int(
         len(sent_numbers) * dev_size)):(int(len(sent_numbers) * train_size))], sent_numbers[
                                                                                (int(len(sent_numbers) * train_size)):]
-    dev_set, train_set, test_set = df[df['sentence_number'].isin(dev_sents)], df[
-        df['sentence_number'].isin(train_sents)], df[df['sentence_number'].isin(test_sents)]
+    test_set = df[df['sentence_number'].isin(test_sents)]
 
+    dev_set = df[df['sentence_number'].isin(dev_sents)]
+    train_set = df[df['sentence_number'].isin(train_sents)]
+    
     for df in [dev_set, train_set, test_set]:
         df['subtype'] = df.apply(lambda x: add_col_for_prediction(x, subtype), axis=1)
 
@@ -75,25 +77,35 @@ def split_dev_train_and_test_sets(df, subtype, train_size: float):
 class SentenceGetter(object):
     def __init__(self, dataframe, max_sent=None):
         self.df = dataframe
-        self.tags = self.df['subtype'].unique().tolist()
+        self.tags = self.df['is_modal'].unique().tolist()
         self.tags.insert(0, 'PAD')
 
         self.index = 0
         self.max_sent = max_sent
         self.tokens = dataframe['token']
-        self.modal_tags = dataframe['subtype']
+        self.modal_tags = dataframe['is_modal']
 
-    def get_tokens_and_tags_by_sentences(self):
+    def get_tokens_and_tags_by_sentences(self, has_punct=True):
         sent = []
         counter = 0
-        for token, tag in zip(self.tokens, self.modal_tags):
-            sent.append((token, tag))
-            if token.strip() in ['.', '?', '!'] and (len(sent) > 2):
-                yield sent
-                sent = []
-                counter += 1
-            if self.max_sent is not None and counter >= self.max_sent:
-                return
+        if has_punct:
+            for token, tag in zip(self.tokens, self.modal_tags):
+                sent.append((token, tag))
+                if token.strip() in ['.', '?', '!'] and (len(sent) > 2):
+                    yield sent
+                    sent = []
+                    counter += 1
+                if self.max_sent is not None and counter >= self.max_sent:
+                    return
+        else:
+            for token, tag in zip(self.tokens, self.modal_tags):
+                sent.append((token, tag))
+                if not token.strip():
+                    yield sent
+                    sent = []
+                    counter += 1
+#             if self.max_sent is not None and counter >= self.max_sent:
+#                 return
 
     def get_tag2idx(self):
         return {tag: idx for idx, tag in enumerate(self.tags)}
@@ -101,11 +113,11 @@ class SentenceGetter(object):
     def get_idx2tag(self):
         return {idx: tag for idx, tag in enumerate(self.tags)}
 
-    def get_2Dlist_of_sentences(self):
-        return [[token for token, tag in sent] for sent in self.get_tokens_and_tags_by_sentences()]
+    def get_2Dlist_of_sentences(self, has_punct=True):
+        return [[token for token, tag in sent] for sent in self.get_tokens_and_tags_by_sentences(has_punct)]
 
-    def get_2Dlist_of_tags(self):
-        return [[tag for token, tag in sent] for sent in self.get_tokens_and_tags_by_sentences()]
+    def get_2Dlist_of_tags(self, has_punct=True):
+        return [[tag for token, tag in sent] for sent in self.get_tokens_and_tags_by_sentences(has_punct)]
 
 
 class BertTrainer(object):
@@ -136,8 +148,11 @@ class BertTrainer(object):
         self.bs = bs
         self.FULL_FINETUNING = full_finetuning
 
-    def set_cuda(self):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def set_cuda(self, device=-1):
+        if device > -1:
+            device = torch.cuda.device(device)
+        else:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         n_gpu = torch.cuda.device_count()
         return device, n_gpu
 
@@ -153,7 +168,8 @@ class BertTrainer(object):
                 bert_tokens.extend(b_tokens)
                 for b_token in b_tokens:
                     bert_labels.append(orig_label)
-            if b_tokens:
+#             if b_tokens:
+            if bert_tokens:
                 tokenized_texts.append(bert_tokens)
                 labels.append(bert_labels)
             assert len(bert_tokens) == len(bert_labels)
@@ -245,7 +261,7 @@ class Evaluator():
                         'max_len': max_len,
                         'bs': bs,
                         'full_finetuning': full_finetuning,
-                        'device': device,
+                        'device': str(device),
                         'n_gpu': n_gpu,
                         'loss': loss,
                         'optimizer': optimizer}
@@ -372,29 +388,52 @@ class Evaluator():
 
 
 if __name__ == '__main__':
-    script, model_filename, modality_resolution = sys.argv
-    logger = get_logger('./logs/{}.log'.format(model_filename))
+    script, model_filename, modality_resolution, cuda = sys.argv
+    logger = get_logger('../../logs/{}.log'.format(model_filename))
     define_torch_seed(3)
-    gme_df = pd.read_csv('./data/tokenized_and_tagged_gme_coarse_grained.csv', sep='\t', keep_default_na=False)
-    dev_df, train_df, test_df = split_dev_train_and_test_sets(gme_df, modality_resolution, 0.8)
+#     gme_df = pd.read_csv('/home/nlp/shovalsa/modality/data/tokenized_and_tagged_gme.csv', sep='\t', keep_default_na=False)    
+#     dev_df, train_df, test_df = split_dev_train_and_test_sets(gme_df, modality_resolution, 0.8)
 
-    bert = BertTrainer(dev_df, train_df, test_df, pre_trained='../resources/wwm_cased_L-24_H-1024_A-16/')
-    train_sentences, train_tags = bert.train_getter.get_2Dlist_of_sentences(), bert.train_getter.get_2Dlist_of_tags()
+    
+    dev_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/validation_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
+    train_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/dtrain_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
+    test_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/test_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
 
-    dev_sentences, dev_tags = bert.dev_getter.get_2Dlist_of_sentences(), bert.dev_getter.get_2Dlist_of_tags()
-    test_sentences, test_tags = bert.test_getter.get_2Dlist_of_sentences(), bert.test_getter.get_2Dlist_of_tags()
+    found_punct = False
+    
+    for i, row in dev_df.iterrows():
+        if row["token"] in ["?", ".", "!"]:
+            found_punct = True
+            break
+        elif not row["token"].strip():
+            found_punct = False
+            break
+    
+    print("found punct", found_punct)
+#     dev_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/validation_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
+#     train_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/dtrain_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
+#     test_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/test_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
 
+#     bert = BertTrainer(dev_df, train_df, test_df, pre_trained='../resources/wwm_cased_L-24_H-1024_A-16/')
+    bert = BertTrainer(dev_df, train_df, test_df, pre_trained='bert-base-cased')
+    
+    train_sentences = bert.train_getter.get_2Dlist_of_sentences(has_punct=found_punct)
+    train_tags = bert.train_getter.get_2Dlist_of_tags(has_punct=found_punct)
+    dev_sentences, dev_tags = bert.dev_getter.get_2Dlist_of_sentences(has_punct=found_punct), bert.dev_getter.get_2Dlist_of_tags(has_punct=found_punct)
+    test_sentences, test_tags = bert.test_getter.get_2Dlist_of_sentences(has_punct=found_punct), bert.test_getter.get_2Dlist_of_tags(has_punct=found_punct)
+#     print(test_sentences, test_tags)
     tokenizer = BertTokenizer.from_pretrained(bert.pre_trained, do_lower_case=False)
     train_tokenized_texts, train_tokenized_labels = bert.tokenize(train_sentences, train_tags, tokenizer=tokenizer)
+#     print("train_tokenized_texts, train_tokenized_labels", train_tokenized_texts)
     input_ids, tags, attention_masks = bert.pad_sentences_and_labels(train_tokenized_texts, train_tokenized_labels,
                                                                      tokenizer=tokenizer)
-
     train_dataloader = bert.get_train_dataloader(input_ids, tags, attention_masks)
-    model = bert.get_model('../resources/bert-base-cased/')
+    model = bert.get_model('bert-base-cased')
     optimizer_grouped_parameters = bert.define_optimizer_grouped_parameters(model, FULL_FINETUNING)
     optimizer = Adam(optimizer_grouped_parameters, lr=3e-5)
 
-    device, n_gpu = bert.set_cuda()
+    device, n_gpu = bert.set_cuda(int(cuda))
+    print("device, n_gpu", device, n_gpu)
     logger.info('idx2tag: {} \t tag2idx: {}'.format(bert.idx2tag,bert.tag2idx))
     logger.info('device: {}\t n_gpu{}'.format(device, n_gpu))
     loss = bert.train_model(model, EPOCHS, MAX_GRAD_NORM, optimizer)
@@ -406,17 +445,17 @@ if __name__ == '__main__':
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss
     },
-        './models/{}.pth'.format(model_filename))
+        '../../models/{}.pth'.format(model_filename))
 
 
 
     # evaluations
-    eval = Evaluator(bert)
-    eval.collect_accuracies(model, dev_sentences, dev_tags, tokenizer)
+    eval = Evaluator(bert, tokenizer)
+    eval.collect_accuracies(model, dev_sentences, dev_tags)
     eval.calculate_dataset_accuracy()
     eval.add_network_parameters(EPOCHS, MAX_GRAD_NORM, MAX_LEN,BS, FULL_FINETUNING, device, n_gpu, loss, optimizer)
     results = eval.results
 
-    with open('./results/{}.json'.format(model_filename), 'w') as outfile:
+    with open('/home/nlp/shovalsa/modality/modality_NN/results/{}.json'.format(model_filename), 'w') as outfile:
         json.dump(results, outfile, indent=4)
 
