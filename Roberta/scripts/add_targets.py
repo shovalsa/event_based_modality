@@ -60,9 +60,9 @@ def get_sent_anno_map2(infile_id):
 
 def merge():
     t_list = []
-    sent_anno_map1 = get_sent_anno_map('/Users/valentinapyatkin/PycharmProjects/Modality/data/predictions/new_target/predicted_five_4_eval')
-    sent_anno_map2 = get_sent_anno_map2('/Users/valentinapyatkin/PycharmProjects/Modality/data/full/test_prejacent_bio_new.txt')
-    outfile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/full/test_prejacent_target_five_predicted.txt', 'w')
+    sent_anno_map1 = get_sent_anno_map('$(user.home)/PycharmProjects/Modality/data/predictions/new_target/predicted_five_4_eval')
+    sent_anno_map2 = get_sent_anno_map2('$(user.home)/PycharmProjects/Modality/data/full/test_prejacent_bio_new.txt')
+    outfile = codecs.open('$(user.home)/PycharmProjects/Modality/data/full/test_prejacent_target_five_predicted.txt', 'w')
     for key, value in sent_anno_map2.items():
         anno1 = sent_anno_map1[key]
         print(anno1)
@@ -96,9 +96,9 @@ def merge():
 
 def merge_tags():
     t_list = []
-    sent_anno_map1 = get_sent_anno_map2('/Users/valentinapyatkin/PycharmProjects/Modality/data/all_unrolled_no_ambiguities/test_all_unrolled_no_ambiguities_space.txt')
-    sent_anno_map2 = get_sent_anno_map2('/Users/valentinapyatkin/PycharmProjects/Modality/data/full/test_prejacent_bio_new.txt')
-    outfile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/full/test_prejacent_five.txt', 'w')
+    sent_anno_map1 = get_sent_anno_map2('$(user.home)/PycharmProjects/Modality/data/all_unrolled_no_ambiguities/test_all_unrolled_no_ambiguities_space.txt')
+    sent_anno_map2 = get_sent_anno_map2('$(user.home)/PycharmProjects/Modality/data/full/test_prejacent_bio_new.txt')
+    outfile = codecs.open('$(user.home)/PycharmProjects/Modality/data/full/test_prejacent_five.txt', 'w')
     for key, value in sent_anno_map2.items():
         anno1 = sent_anno_map1[key]
         print(anno1)
@@ -129,9 +129,9 @@ def merge_tags():
     print(set(t_list))
 
 merge()
-# target_file = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/predictions/classifier_modal_not_modal_basic_fold4_test_eval', 'r')
-# infile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/only_bio/test_prejacent_bio_1.bmes', 'r')
-# outfile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/full/test_prejacent_target_naive_predicted.txt', 'w')
+# target_file = codecs.open('$(user.home)/PycharmProjects/Modality/data/predictions/classifier_modal_not_modal_basic_fold4_test_eval', 'r')
+# infile = codecs.open('$(user.home)/PycharmProjects/Modality/data/only_bio/test_prejacent_bio_1.bmes', 'r')
+# outfile = codecs.open('$(user.home)/PycharmProjects/Modality/data/full/test_prejacent_target_naive_predicted.txt', 'w')
 # outlist = []
 # for inline, tline in zip(infile.readlines(), target_file.readlines()):
 #     print(inline)

@@ -391,13 +391,13 @@ if __name__ == '__main__':
     script, model_filename, modality_resolution, cuda = sys.argv
     logger = get_logger('../../logs/{}.log'.format(model_filename))
     define_torch_seed(3)
-#     gme_df = pd.read_csv('/home/nlp/shovalsa/modality/data/tokenized_and_tagged_gme.csv', sep='\t', keep_default_na=False)    
+#     gme_df = pd.read_csv('$(user.home)/modality/data/tokenized_and_tagged_gme.csv', sep='\t', keep_default_na=False)    
 #     dev_df, train_df, test_df = split_dev_train_and_test_sets(gme_df, modality_resolution, 0.8)
 
     
-    dev_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/validation_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
-    train_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/dtrain_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
-    test_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/test_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
+    dev_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/validation_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
+    train_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/dtrain_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
+    test_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/test_{}.bmes".format(model_filename), sep=" ", names=["token", "is_modal"], keep_default_na=False)
 
     found_punct = False
     
@@ -410,9 +410,9 @@ if __name__ == '__main__':
             break
     
     print("found punct", found_punct)
-#     dev_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/validation_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
-#     train_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/dtrain_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
-#     test_df = pd.read_csv("/home/nlp/shovalsa/modality/data/GME/bmes/test_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
+#     dev_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/validation_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
+#     train_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/dtrain_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
+#     test_df = pd.read_csv("$(user.home)/modality/data/GME/bmes/test_modal-BIOSE-coarse.bmes", sep=" ", names=["token", "is_modal"], keep_default_na=False)
 
 #     bert = BertTrainer(dev_df, train_df, test_df, pre_trained='../resources/wwm_cased_L-24_H-1024_A-16/')
     bert = BertTrainer(dev_df, train_df, test_df, pre_trained='bert-base-cased')
@@ -456,6 +456,6 @@ if __name__ == '__main__':
     eval.add_network_parameters(EPOCHS, MAX_GRAD_NORM, MAX_LEN,BS, FULL_FINETUNING, device, n_gpu, loss, optimizer)
     results = eval.results
 
-    with open('/home/nlp/shovalsa/modality/modality_NN/results/{}.json'.format(model_filename), 'w') as outfile:
+    with open('$(user.home)/modality/modality_NN/results/{}.json'.format(model_filename), 'w') as outfile:
         json.dump(results, outfile, indent=4)
 

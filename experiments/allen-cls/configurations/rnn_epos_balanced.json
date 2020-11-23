@@ -35,7 +35,7 @@
     "text_field_embedder": {
       "tokens": {
         "type": "embedding",
-        "pretrained_file": "/home/nlp/shovalsa/modality/embeddings/GoogleNews-vectors-negative300.txt.gz",
+        "pretrained_file": "$(user.home)/modality/embeddings/GoogleNews-vectors-negative300.txt.gz",
         "embedding_dim": 300,
         "trainable": false
       }

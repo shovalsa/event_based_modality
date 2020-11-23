@@ -15,8 +15,8 @@ def change(label, prev_label):
         return label
 
 def convert():
-    infile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/predictions/new_prej/prejacent_binary_fixed_0_eval', 'r')
-    outfile = codecs.open('/Users/valentinapyatkin/PycharmProjects/Modality/data/predictions/new_prej/prejacent_binary_fixed_0_eval_lab','w')
+    infile = codecs.open('$(user.home)/PycharmProjects/Modality/data/predictions/new_prej/prejacent_binary_fixed_0_eval', 'r')
+    outfile = codecs.open('$(user.home)/PycharmProjects/Modality/data/predictions/new_prej/prejacent_binary_fixed_0_eval_lab','w')
     prev1 = 'O'
     prev2 = 'O'
     for line in infile.readlines():

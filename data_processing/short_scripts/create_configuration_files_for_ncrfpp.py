@@ -95,7 +95,7 @@ load_model_dir={best_model}
 if __name__ == "__main__":
     resolution = "plausibility_others"
     #change the conf_basepath to the location where NCRF++ is installed. This script assumes config and logs directories inside.
-    ncrf_path = "/home/nlp/shovalsa/NCRFpp"
+    ncrf_path = "$(user.home)/NCRFpp"
     train = True
     decode = False
     
