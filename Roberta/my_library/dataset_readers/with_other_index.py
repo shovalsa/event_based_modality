@@ -1,11 +1,7 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import logging
 
 from overrides import overrides
-
-from transformers.tokenization_bert import BertTokenizer
-import random
-
 
 from allennlp.common.file_utils import cached_path
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
@@ -19,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_WORD_TAG_DELIMITER = "###"
 
 
-@DatasetReader.register("bert_sequence_tagging_mod_ind")
+@DatasetReader.register("with_other_index")
 class SequenceTaggingDatasetReader(DatasetReader):
     """
     Reads instances from a pretokenised file where each line is in the following format:
@@ -46,7 +42,7 @@ class SequenceTaggingDatasetReader(DatasetReader):
         word_tag_delimiter: str = DEFAULT_WORD_TAG_DELIMITER,
         token_delimiter: str = None,
         token_indexers: Dict[str, TokenIndexer] = None,
-            **kwargs,
+        **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
@@ -69,31 +65,62 @@ class SequenceTaggingDatasetReader(DatasetReader):
                     continue
                 tokens = []
                 tags = []
-                verb_indicator = []
                 for token in line.split(self._token_delimiter):
                     tok, tag, ind = token.split(self._word_tag_delimiter)
-                    tokens.append(tok)
-                    tags.append(tag)
-                    verb_indicator.append(ind)
+                    if ind == '1':
+                        tokens.append('R_S')
+                        tokens.append(tok)
+                        tokens.append('R_E')
+                        tags.append(tag)
+                        tags.append(tag)
+                        tags.append(tag)
+                    elif ind == '2':
+                        tokens.append('L_S')
+                        tokens.append(tok)
+                        tokens.append('L_E')
+                        tags.append(tag)
+                        tags.append(tag)
+                        tags.append(tag)
+                    elif ind == '3':
+                        tokens.append('V_S')
+                        tokens.append(tok)
+                        tokens.append('V_E')
+                        tags.append(tag)
+                        tags.append(tag)
+                        tags.append(tag)
+                    elif ind == '4':
+                        tokens.append('X_S')
+                        tokens.append(tok)
+                        tokens.append('X_E')
+                        tags.append(tag)
+                        tags.append(tag)
+                        tags.append(tag)
+                    elif ind == '5':
+                        tokens.append('Y_S')
+                        tokens.append(tok)
+                        tokens.append('Y_E')
+                        tags.append(tag)
+                        tags.append(tag)
+                        tags.append(tag)
+                    else:
+                        tokens.append(tok)
+                        tags.append(tag)
                 tokens = [Token(token) for token in tokens]
-                verb_label= [int(ind) for ind in verb_indicator]
-                yield self.text_to_instance(tokens, verb_label,  tags)
+                yield self.text_to_instance(tokens, tags)
 
     def text_to_instance(  # type: ignore
-        self, tokens: List[Token],  verb_label: List[int], tags: List[str] = None
+        self, tokens: List[Token], tags: List[str] = None
     ) -> Instance:
         """
         We take `pre-tokenized` input here, because we don't have a tokenizer in this class.
         """
+
         fields: Dict[str, Field] = {}
         sequence = TextField(tokens, self._token_indexers)
         fields["tokens"] = sequence
         meta_fields = {"words": [x.text for x in tokens]}
         meta_fields["target_tags"] = tags
         fields["metadata"] = MetadataField(meta_fields)
-        verb_indicator = SequenceLabelField(verb_label, sequence)
-        fields["verb_indicator"] = verb_indicator
         if tags is not None:
             fields["tags"] = SequenceLabelField(tags, sequence)
         return Instance(fields)
-

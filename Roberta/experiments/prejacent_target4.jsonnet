@@ -15,8 +15,8 @@ local max_length = 512;
           },
         },
     },
-    "train_data_path": "data/4/train_prejacent_target_naive.txt",
-    "validation_data_path": "data/4/dev_prejacent_target_naive.txt",
+    "train_data_path": "data/4/train_prejacent_target_binary.txt",
+    "validation_data_path": "data/4/dev_prejacent_target_binary.txt",
     "data_loader": {
         "batch_sampler": {
             "type": "bucket",
@@ -27,7 +27,7 @@ local max_length = 512;
         "type": "crf_tagger_mod_ind",
         "encoder": {
             "type": "pass_through",
-            "input_dim": 770,
+            "input_dim": 771,
         },
         "include_start_end_transitions": false,
         "text_field_embedder": {

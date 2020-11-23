@@ -15,8 +15,8 @@ local max_length = 512;
           },
         },
     },
-    "train_data_path": "data/4/train_prejacent_naive.txt",
-    "validation_data_path": "data/4/dev_prejacent_naive.txt",
+    "train_data_path": "data/4/train_prejacent_five.txt",
+    "validation_data_path": "data/4/dev_prejacent_five.txt",
     "data_loader": {
         "batch_sampler": {
             "type": "bucket",
@@ -55,7 +55,7 @@ local max_length = 512;
         },
         "grad_norm": 1.0,
         "num_epochs": epochs,
-        "cuda_device": 3,
+        "cuda_device": 0,
         "validation_metric": "+tagging_f1"
     }
 }

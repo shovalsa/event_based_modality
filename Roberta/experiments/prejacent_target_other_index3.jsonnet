@@ -1,12 +1,12 @@
 local transformer_model = "roberta-base";
 local transformer_hidden_dim = 768;
-local epochs = 6;
+local epochs = 12;
 local batch_size = 8;
 local max_length = 512;
 
 {
     "dataset_reader": {
-        "type": "bert_sequence_tagging_mod",
+        "type": "with_other_index",
         "token_indexers": {
           "tokens": {
             "type": "pretrained_transformer_mismatched",
@@ -15,8 +15,8 @@ local max_length = 512;
           },
         },
     },
-    "train_data_path": "data/all_unrolled_no_ambiguities/1/train_all_unrolled_no_ambiguities_space.txt",
-    "validation_data_path": "data/all_unrolled_no_ambiguities/1/dev_all_unrolled_no_ambiguities_space.txt",
+    "train_data_path": "data/3/train_prejacent_target_five_gold.txt",
+    "validation_data_path": "data/3/dev_prejacent_target_five_gold.txt",
     "data_loader": {
         "batch_sampler": {
             "type": "bucket",
@@ -24,11 +24,12 @@ local max_length = 512;
         }
     },
     "model": {
-        "type": "simple_tagger_mod",
+        "type": "crf_tagger_mod",
         "encoder": {
             "type": "pass_through",
             "input_dim": transformer_hidden_dim,
         },
+        "include_start_end_transitions": false,
         "text_field_embedder": {
           "token_embedders": {
             "tokens": {
@@ -54,7 +55,7 @@ local max_length = 512;
         },
         "grad_norm": 1.0,
         "num_epochs": epochs,
-        "cuda_device": 1,
+        "cuda_device": 0,
         "validation_metric": "+tagging_f1"
     }
 }

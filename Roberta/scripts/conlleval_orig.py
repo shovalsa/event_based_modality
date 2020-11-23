@@ -1,27 +1,22 @@
 """
 This script applies to IOB2 or IOBES tagging scheme.
 If you are using a different scheme, please convert to IOB2 or IOBES.
-
 IOB2:
-- B = begin, 
-- I = inside but not the first, 
+- B = begin,
+- I = inside but not the first,
 - O = outside
-
-e.g. 
+e.g.
 John   lives in New   York  City  .
 B-PER  O     O  B-LOC I-LOC I-LOC O
-
 IOBES:
-- B = begin, 
-- E = end, 
-- S = singleton, 
-- I = inside but not the first or the last, 
+- B = begin,
+- E = end,
+- S = singleton,
+- I = inside but not the first or the last,
 - O = outside
-
 e.g.
 John   lives in New   York  City  .
 S-PER  O     O  B-LOC I-LOC E-LOC O
-
 prefix: IOBES
 chunk_type: PER, LOC, etc.
 """
@@ -30,16 +25,13 @@ from __future__ import division, print_function, unicode_literals
 import sys
 from collections import defaultdict
 import codecs
-
-
 class Eval:
     def __init__(self):
         print("creating eval...")
-        
     def split_tag(self, chunk_tag):
         """
         split chunk tag into IOBES prefix and chunk_type
-        e.g. 
+        e.g.
         B-PER -> (B, PER)
         O -> (O, None)
         """
@@ -47,13 +39,13 @@ class Eval:
             return ('O', None)
         return chunk_tag.split('-', maxsplit=1)
 
+
     def is_chunk_end(self, prev_tag, tag):
         """
         check if the previous chunk ended between the previous and current word
-        e.g. 
+        e.g.
         (B-PER, I-PER) -> False
         (B-LOC, O)  -> True
-
         Note: in case of contradicting tags, e.g. (B-PER, I-LOC)
         this is considered as (B-PER, B-LOC)
         """
@@ -68,7 +60,8 @@ class Eval:
         if chunk_type1 != chunk_type2:
             return True
 
-        return prefix2 in ['B', 'S', 'T', 'R', 'L'] or prefix1 in ['E', 'S', 'T', 'R', 'L']
+        return prefix2 in ['B', 'S'] or prefix1 in ['E', 'S']
+
 
     def is_chunk_start(self, prev_tag, tag):
         """
@@ -85,7 +78,8 @@ class Eval:
         if chunk_type1 != chunk_type2:
             return True
 
-        return prefix2 in ['B', 'S', 'T', 'R', 'L'] or prefix1 in ['E', 'S', 'T', 'R', 'L']
+        return prefix2 in ['B', 'S'] or prefix1 in ['E', 'S']
+
 
     def calc_metrics(self, tp, p, t, percent=True):
         """
@@ -100,18 +94,17 @@ class Eval:
         else:
             return precision, recall, fb1
 
+
     def count_chunks(self, true_seqs, pred_seqs):
         """
         true_seqs: a list of true tags
         pred_seqs: a list of predicted tags
-
-        return: 
-        correct_chunks: a dict (counter), 
-                        key = chunk types, 
+        return:
+        correct_chunks: a dict (counter),
+                        key = chunk types,
                         value = number of correctly identified chunks per type
         true_chunks:    a dict, number of true chunks per type
         pred_chunks:    a dict, number of identified chunks per type
-
         correct_counts, true_counts, pred_counts: similar to above, but for tags
         """
         correct_chunks = defaultdict(int)
@@ -158,11 +151,12 @@ class Eval:
         if correct_chunk is not None:
             correct_chunks[correct_chunk] += 1
 
-        return (correct_chunks, true_chunks, pred_chunks, 
-            correct_counts, true_counts, pred_counts)
+        return (correct_chunks, true_chunks, pred_chunks,
+                correct_counts, true_counts, pred_counts)
+
 
     def get_result(self, correct_chunks, true_chunks, pred_chunks,
-        correct_counts, true_counts, pred_counts, verbose=True):
+                   correct_counts, true_counts, pred_counts, verbose=True):
         """
         if verbose, print overall performance, as well as preformance per chunk type;
         otherwise, simply return overall prec, rec, f1 scores
@@ -191,16 +185,16 @@ class Eval:
         print("processed %i tokens with %i phrases; " % (sum_true_counts, sum_true_chunks), end='')
         print("found: %i phrases; correct: %i.\n" % (sum_pred_chunks, sum_correct_chunks), end='')
 
-        print("accuracy: %6.2f%%; (non-O)" % (100*nonO_correct_counts/nonO_true_counts))
-        print("accuracy: %6.2f%%; " % (100*sum_correct_counts/sum_true_counts), end='')
+        print("accuracy: %6.2f%%; (non-O)" % (100 * nonO_correct_counts / nonO_true_counts))
+        print("accuracy: %6.2f%%; " % (100 * sum_correct_counts / sum_true_counts), end='')
         print("precision: %6.2f%%; recall: %6.2f%%; FB1: %6.2f" % (prec, rec, f1))
 
         # for each chunk type, compute precision, recall and FB1 (default values are 0.0)
         for t in chunk_types:
             prec, rec, f1 = self.calc_metrics(correct_chunks[t], pred_chunks[t], true_chunks[t])
-            print("%17s: " %t , end='')
+            print("%17s: " % t, end='')
             print("precision: %6.2f%%; recall: %6.2f%%; FB1: %6.2f" %
-                        (prec, rec, f1), end='')
+                  (prec, rec, f1), end='')
             print("  %d" % pred_chunks[t])
 
         return res
@@ -208,19 +202,19 @@ class Eval:
         # http://cnts.uia.ac.be/conll2003/ner/example.tex
         # but I'm not implementing this
 
+
     def evaluate(self, true_seqs, pred_seqs, verbose=True):
-        print("evaluation here")
         (correct_chunks, true_chunks, pred_chunks,
-            correct_counts, true_counts, pred_counts) = self.count_chunks(true_seqs, pred_seqs)
+         correct_counts, true_counts, pred_counts) = self.count_chunks(true_seqs, pred_seqs)
         result = self.get_result(correct_chunks, true_chunks, pred_chunks,
-            correct_counts, true_counts, pred_counts, verbose=verbose)
+                            correct_counts, true_counts, pred_counts, verbose=verbose)
         return result
+
 
     def evaluate_conll_file(self, fileIterator):
         true_seqs, pred_seqs = [], []
 
         for line in fileIterator:
-            print(line)
             cols = line.strip().split()
             # each non-empty line must contain >= 3 columns
             if not cols:
@@ -235,13 +229,11 @@ class Eval:
         return self.evaluate(true_seqs, pred_seqs)
 
 
-
 if __name__ == '__main__':
     """
     usage:     conlleval < file
     """
     e = Eval()
-    file = codecs.open("/Users/vale/PycharmProjects/Modality/data/predictions/prejacent_target_naive4_eval", 'r').readlines()
+    file = codecs.open("/Users/valentinapyatkin/PycharmProjects/Modality/data/predictions/new_prej/prejacent_binary_fixed_0_eval_lab", 'r').readlines()
 
     e.evaluate_conll_file(file)
-    #evaluate_conll_file(sys.stdin)

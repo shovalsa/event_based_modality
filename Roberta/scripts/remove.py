@@ -1,8 +1,8 @@
 
 import codecs
 
-infile = codecs.open('/Users/vale/PycharmProjects/Modality/data/predictions/bla/prejacent_correct_naive0_eval', 'r')
-outfile = codecs.open('/Users/vale/PycharmProjects/Modality/data/predictions/bla/prejacent_correct_naive0_eval_bla', 'w')
+infile = codecs.open('data/predictions/bla/prejacent_correct_naive0_eval', 'r')
+outfile = codecs.open('data/predictions/bla/prejacent_correct_naive0_eval_bla', 'w')
 
 prev1 = 'O'
 prev2 = 'O'

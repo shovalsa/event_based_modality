@@ -15,8 +15,8 @@ local max_length = 512;
           },
         },
     },
-    "train_data_path": "data/plausibility_others/3/train_plausibility_others_space.txt",
-    "validation_data_path": "data/plausibility_others/3/dev_plausibility_others_space.txt",
+    "train_data_path": "data/all_unrolled_no_ambiguities/3/train_all_unrolled_no_ambiguities_space.txt",
+    "validation_data_path": "data/all_unrolled_no_ambiguities/3/dev_all_unrolled_no_ambiguities_space.txt",
     "data_loader": {
         "batch_sampler": {
             "type": "bucket",
