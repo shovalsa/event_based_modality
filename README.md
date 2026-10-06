@@ -1,2 +1,2 @@
 # Event Based Modality
-Following a joint work of
+Deprecated - see https://github.com/OnlpLab/Modality for updated repository.
